@@ -18,7 +18,7 @@ observation = [30, 30, 50, 50]
 #init parameters
 learning_rate = 0.1
 explore_rate = 1
-max_episodes = 60000
+max_episodes = 30000
 prior_reward = 0
 total_reward = 0
 
@@ -59,9 +59,9 @@ for episode in range(max_episodes):
         disc_state = new_disc_state
 
         if explore_rate > 0.05:
-            if ep_reward > prior_reward and episode > 6000:
-                print(f'{(60000 - episode)} batches left')
-                explore_rate = math.pow(decay_value, episode - 6000)
+            if ep_reward > prior_reward and episode > 1000:
+                print(f'{(30000 - episode)} batches left')
+                explore_rate = math.pow(decay_value, episode - 1000)
 
             print("Explore rate value: ", explore_rate)
 
