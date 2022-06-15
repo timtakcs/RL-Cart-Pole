@@ -2,6 +2,7 @@ import numpy as np
 import gym
 import Agent as agnt
 import math
+import torch
 
 env = gym.make("CartPole-v1")
 print("----------------------------")
