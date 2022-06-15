@@ -21,6 +21,7 @@ state = discretize(env.reset())
 for _ in range(1000):
     print(state)
     action = np.argmax(agent.q_table[state])
+    print(action)
     new_state, _, _, _ = env.step(action)
     env.render()
 

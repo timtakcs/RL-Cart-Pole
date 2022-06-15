@@ -63,6 +63,7 @@ for epoch in range(epochs):
         net.zero_grad()
         out = net(features.view(-1, 28*28))
         loss = f.nll_loss(out, labels)
+        print(loss)
         loss.backward()
         optimizer.step()
     

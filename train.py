@@ -19,7 +19,7 @@ observation = [30, 30, 50, 50]
 #init parameters
 learning_rate = 0.1
 explore_rate = 1
-max_episodes = 30000
+max_episodes = 1000
 prior_reward = 0
 total_reward = 0
 
@@ -42,7 +42,7 @@ for episode in range(max_episodes):
     ep_reward = 0
 
     while not done:
-        action = agent.getAction(disc_state, explore_rate, env)
+        action = agent.get_action_q(disc_state, explore_rate, env)
         new_state, reward, done, info = env.step(action)
         ep_reward += reward
         new_disc_state = discretize(new_state)
@@ -60,9 +60,9 @@ for episode in range(max_episodes):
         disc_state = new_disc_state
 
         if explore_rate > 0.05:
-            if ep_reward > prior_reward and episode > 1000:
+            if ep_reward > prior_reward and episode > 100:
                 print(f'{(30000 - episode)} batches left')
-                explore_rate = math.pow(decay_value, episode - 1000)
+                explore_rate = math.pow(decay_value, episode - 100)
 
             print("Explore rate value: ", explore_rate)
 
