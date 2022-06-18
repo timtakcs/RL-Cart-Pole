@@ -1,3 +1,4 @@
+from collections import deque
 import random
 import numpy as np
 import torch
@@ -7,14 +8,15 @@ import torch.optim as opt
 import math
 
 class Net(nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, input_size) -> None:
         super().__init__()
-        self.layer1 = nn.Linear(4, 24)
-        self.layer2 = nn.Linear(24, 24)
-        self.layer3 = nn.Linear(24, 24)
-        self.layer4 = nn.Linear(24, 2)
-
+        self.layer1 = nn.Linear(input_size, 64)
+        self.layer2 = nn.Linear(64, 64)
+        self.layer3 = nn.Linear(64, 64)
+        self.layer4 = nn.Linear(64, 2)
         self.initialize_weights()
+        self.optimizer = opt.Adam(self.parameters(), lr=1e-3)
+        self.loss = nn.MSELoss()
 
     def forward(self, data):
         data = f.relu(self.layer1(data))
@@ -29,73 +31,129 @@ class Net(nn.Module):
                 nn.init.kaiming_uniform_(m.weight.data)
                 nn.init.constant_(m.bias.data, 0)
 
+class ConvNet(nn.Module):
+    def __init__(self, input_size) -> None:
+        super().__init__()
+        
+
 class Agent:
-    def __init__(self, env, observation, net=None):
+    def __init__(self, env, observation, input_size):
         self.observation_size = (1, 1, 6, 3)
         self.action_size = env.action_space.n
         self.q_table = np.random.uniform(low=0, high=1, size=(observation + [self.action_size]))
         self.q_table.shape
-        self.replay_memory = []
-        self.net = Net()
-        self.target_net = Net()
-        self.optimizer = opt.Adam(self.net.parameters(), lr=1e-3)
+        self.replay_memory = deque(maxlen=1000)
+        self.device = torch.device("cpu") if torch.cuda.is_available() else torch.device("cpu")
+        self.net = Net(input_size).to(self.device)
+        self.target_net = Net(input_size).to(self.device)
+        self.target_net.load_state_dict(self.net.state_dict())
+        self.memory_cnt = 0
+        self.memory_size = 1000
+
+        self.state_memory = np.zeros((self.memory_size, input_size), dtype=np.float32)
+        self.next_state_memory = np.zeros((self.memory_size, input_size), dtype=np.float32)
+        self.action_memory = np.zeros(self.memory_size, dtype=np.int32)
+        self.reward_memory = np.zeros(self.memory_size, dtype=np.int32)
+        self.done_memory = np.zeros(self.memory_size, dtype=bool)
            
     def get_action(self, state, epsilon, env):
         if random.random() < epsilon:
             action = env.action_space.sample()
         else:
-            action = torch.argmax(self.net(torch.Tensor(state)))
+            print("sampling")
+            action = torch.argmax(self.net(torch.Tensor(state))).item()
 
         return action   
 
-    def get_action_q(self, state, exploration_rate, env):
-        if random.random() < exploration_rate:
+    def get_action_q(self, state, epsilon, env):
+        if random.random() < epsilon:
             action = env.action_space.sample()
         else:
             action = np.argmax(self.q_table[state])
+            print(action)
 
         return action    
 
-    def train(self, discount, eps):
-        replay_memory = self.shuffle(self.replay_memory)
-        x = []
-        y = []
+    # def train(self, discount, eps, batch_size):
+    #     if self.memory_cnt < batch_size:
+    #         return
 
-        for i in range(len(replay_memory)):
-            current_exp = replay_memory[i]
-            state, action, reward, next_state = current_exp[0], current_exp[1], current_exp[2], current_exp[3]
-            out = self.net(torch.Tensor(state))
-            q_value = out[action]
+    #     self.net.optimizer.zero_grad()
 
-            target_q_value = reward + discount * torch.max(self.target_net(torch.Tensor(next_state)))
+    #     # max_memory = min(self.memory_cnt, self.memory_size)
+    #     # batch = np.random.choice(max_memory, batch_size, replace=False)
+    #     # batch = np.array(self.replay_memory, dtype=np.object_)[batch]
+    #     batch = self.shuffle(self.replay_memory)
+
+    #     for i in range(batch_size):
+    #         current_exp = batch[i]
+    #         state = current_exp[0]
+    #         action = current_exp[1]
+    #         reward = current_exp[2]
+    #         next_state = current_exp[3]
+    #         done = current_exp[4]
+    #         out = self.net(torch.Tensor(state))
+    #         print(out)
+    #         q_value = out[action]
             
-            x.append(q_value)
-            y.append(target_q_value)
-            
-        loss = f.mse_loss(torch.Tensor(x), torch.Tensor(y))
-        loss.requires_grad = True
-        print("loss", loss)
-        self.net.zero_grad()
+    #         target_q_value = reward + discount * torch.max(self.target_net(torch.Tensor(next_state)))
+
+    #         loss = self.net.loss(torch.Tensor(q_value), torch.Tensor(target_q_value))
+    #         loss.backward()
+    #         self.net.optimizer.step()
+
+    #     if eps % 100 == 0:
+    #         self.target_net.load_state_dict(self.net.state_dict())
+
+    def train(self, discount, frame, batch_size):
+        if self.memory_cnt < batch_size:
+            return
+
+        self.net.optimizer.zero_grad()
+
+        max_memory = min(self.memory_cnt, self.memory_size)
+        batch = np.random.choice(max_memory, batch_size, replace=False)
+
+        batch_index = np.arange(batch_size, dtype=np.int32)
+        
+        state = torch.Tensor(self.state_memory[batch]).to(self.device)
+        next_state = torch.Tensor(self.next_state_memory[batch]).to(self.device)
+        reward = torch.Tensor(self.reward_memory[batch]).to(self.device)
+        done = torch.ByteTensor(self.done_memory[batch]).to(self.device)
+
+        action = self.action_memory[batch]
+
+        q_value = self.net.forward(state)[batch_index, action]
+        q_next = torch.max(self.target_net.forward(next_state), dim=1)[0]
+        q_next[done] = 0.0
+        q_next.detach()
+        
+        q_target = reward + discount * q_next
+
+        loss = self.net.loss(q_value, q_target).to(self.device)
         loss.backward()
-        self.optimizer.step()
+        self.net.optimizer.step()
 
-        self.replay_memory = []
-
-        if eps % 100 == 0:
+        if frame % 1000 == 0:
             self.target_net.load_state_dict(self.net.state_dict())
 
-    # def mse(self, loss_calc, batch_size):
-    #     total = 0
+        # if self.epsilon > self.min_epsilon:
+        #     self.decay()
 
-    #     print(loss_calc[0])
+    # def decay(self):
+    #     self.epsilon = (max(self.min_epsilon, min(1.0, 1.0 - math.log10((self.epsilon + 1)/25))))
 
-    #     for _ in range(batch_size):
-    #         total += math.pow(loss_calc[0][0] - loss_calc[1][0], 2)
+    def store(self, state, action, reward, next_state, done):
+        index = self.memory_cnt % self.memory_size
+        self.state_memory[index] = state
+        self.next_state_memory[index] = next_state
+        self.action_memory[index] = action
+        self.reward_memory[index] = reward
+        self.done_memory[index] = done
+        self.memory_cnt += 1
 
-    #     return total/batch_size
-
-    def shuffle(self, array):
-        for i in range(len(array)):
-            swap_idx = random.randrange(i, len(array))
-            array[i], array[swap_idx] = array[swap_idx], array[i]
-        return array
+    # def shuffle(self, array):
+    #     for i in range(len(array)):
+    #         swap_idx = random.randrange(i, len(array))
+    #         array[i], array[swap_idx] = array[swap_idx], array[i]
+    #     return array

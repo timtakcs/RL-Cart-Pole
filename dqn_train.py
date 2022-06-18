@@ -2,10 +2,10 @@ import numpy as np
 import gym
 import Agent as agnt
 import torch
-import math
+import matplotlib.pyplot as plt
 import os
 
-env = gym.make("CartPole-v1")
+env = gym.make('CartPole-v1')
 print("----------------------------")
 print(env.observation_space)
 print("----------------------------")
@@ -13,20 +13,26 @@ print(env.action_space)
 print("----------------------------")
 
 #init the agent
-agent = agnt.Agent(env, [0])
+agent = agnt.Agent(env, [0], 4)
+
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 #hyperparameters
-max_episodes = 10000
+max_episodes = 2000
 test_episodes = 1000
-discount = 0.85
-decay = 0.9995
-prior_reward = 0
-batch_size = 10
+discount = 0.9
+decay = 0.999985
+batch_size = 32
 
 epsilon = 1
-min_epsilon = 0.1
+min_epsilon = 0.001
 
-c = 0
+frame = 0
+
+scores = []
+eps_for_plot = []
+
+mean = []
 
 for episodes in range(max_episodes):
     done = False
@@ -34,43 +40,40 @@ for episodes in range(max_episodes):
     state = env.reset()
 
     while not done:
-        for steps in range(batch_size):
-            action = agent.get_action(state, epsilon, env)
-            new_state, reward, done, info = env.step(action)
-            agent.replay_memory.append((state, action, reward, new_state))
+        frame += 1
+        action = agent.get_action(state, epsilon, env)
+        new_state, reward, done, info = env.step(action)
+        agent.store(state, action, reward, new_state, done)
+        
+        agent.train(discount, frame, batch_size)
 
-        agent.train(discount, episodes)
+        state = new_state
+        ep_reward += reward
 
-        if epsilon > 0.05:
-            if ep_reward > prior_reward and episodes > 100:
-                print(f'{(1000 - episodes)} episodes left')
-                explore_rate = math.pow(decay, episodes - 1000)
+        if episodes > 100:
+            print(epsilon)
+            epsilon = max(epsilon * decay, min_epsilon)
+
+    scores.append(ep_reward)
+    eps_for_plot.append(episodes)
+    
+    ep_reward = 0
 
     if episodes % 100 == 0:
         print(f'{max_episodes - episodes} left')
+        print("epsilon:", epsilon)
+        if episodes >= 100:
+            mean.append(np.mean(scores[-100:]))
+
+x = [episodes+1 for episodes in range(max_episodes)]
+
+plt.plot(eps_for_plot, scores)
+plt.show()
+
+print(mean)
 
 torch.save(agent.net.state_dict(), "q_model.pth")
-
-# total_up = 0
-
-# state = env.reset()
-
-# for _ in range(test_episodes):
-#     action = torch.argmax(agent.get_action(state, 0, env))
-#     new_state, _, _, _ = env.step(action.item())
-#     print(new_state)
-#     env.render()
-#     state = new_state
     
 env.close()
 
-
-
-# state = (14, 8, -41, -2)
-# action = 0
-# reward = 1
-# next_state = (14, 8, -44, 0)
-
-# agent.replay_memory.append((state, action, reward, next_state))
-# agent.train(discount, 1)
 

@@ -11,6 +11,8 @@ agent.q_table = data
 #sorry for redundancies
 np_array_win_size = np.array([0.25, 0.25, 0.01, 0.1])
 
+print("sDD", np.arange(10, dtype=np.int32))
+
 #sorry again
 def discretize(state):
     discrete_state = state/np_array_win_size + np.array([15, 10, 1, 10])
