@@ -32,19 +32,41 @@ for data in trainset:
     break
 
 class Net(nn.Module):
+    # def __init__(self) -> None:
+    #     super().__init__()
+    #     self.fully_c_1 = nn.Linear(28*28, 64)
+    #     self.fully_c_2 = nn.Linear(64, 64)
+    #     self.fully_c_3 = nn.Linear(64, 64)
+    #     self.fully_c_4 = nn.Linear(64, 10)
+    #     self.conv1 = nn.Conv2d(10, 128, 5)
+    #     print(nn.Flatten(self.conv1))
+    #     print(self.conv1)
+
+    # def forward(self, data):
+    #     data = f.relu(self.fully_c_1(data))
+    #     data = f.relu(self.fully_c_2(data))
+    #     data = f.relu(self.fully_c_3(data))
+
+    #     return f.log_softmax(self.fully_c_4(data), dim=1)
+
     def __init__(self) -> None:
         super().__init__()
-        self.fully_c_1 = nn.Linear(28*28, 64)
-        self.fully_c_2 = nn.Linear(64, 64)
-        self.fully_c_3 = nn.Linear(64, 64)
-        self.fully_c_4 = nn.Linear(64, 10)
+        self.conv1 = nn.Conv2d(1, 32, 5)
+        self.conv2 = nn.Conv2d(32, 64, 5)
+        self.layer1 = nn.Linear(64, 128)
+        self.layer2 = nn.Linear(128, 256)
+        self.output_layer = nn.Linear(256, 3)
 
     def forward(self, data):
-        data = f.relu(self.fully_c_1(data))
-        data = f.relu(self.fully_c_2(data))
-        data = f.relu(self.fully_c_3(data))
+        data = f.relu(self.conv1(data))
+        data = f.max_pool2d(data)
+        data = f.relu(self.conv2(data))
+        data = f.max_pool2d(data)
+        data = nn.Flatten(data)
+        data = f.relu(self.layer1(data))
+        data = f.relu(self.layer2(data))
 
-        return f.log_softmax(self.fully_c_4(data), dim=1)
+        return f.log_softmax(self.output_layer(data))
 
 net = Net().cuda()
 
