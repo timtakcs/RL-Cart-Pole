@@ -5,7 +5,7 @@ import torch
 import matplotlib.pyplot as plt
 import os
 
-env = gym.make('CartPole-v1')
+env = gym.make("LunarLander-v2")
 print("----------------------------")
 print(env.observation_space)
 print("----------------------------")
@@ -13,15 +13,15 @@ print(env.action_space)
 print("----------------------------")
 
 #init the agent
-agent = agnt.Agent(env, [0], 4)
+agent = agnt.Agent(env, [0], 8)
 
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 #hyperparameters
-max_episodes = 2000
+max_episodes = 500
 test_episodes = 1000
-discount = 0.9
-decay = 0.999985
+discount = 0.8
+decay = 0.995
 batch_size = 32
 
 epsilon = 1
@@ -39,6 +39,8 @@ for episodes in range(max_episodes):
     ep_reward = 0
     state = env.reset()
 
+    print(max_episodes - episodes)
+
     while not done:
         frame += 1
         action = agent.get_action(state, epsilon, env)
@@ -51,7 +53,6 @@ for episodes in range(max_episodes):
         ep_reward += reward
 
         if episodes > 100:
-            print(epsilon)
             epsilon = max(epsilon * decay, min_epsilon)
 
     scores.append(ep_reward)
@@ -65,14 +66,12 @@ for episodes in range(max_episodes):
         if episodes >= 100:
             mean.append(np.mean(scores[-100:]))
 
-x = [episodes+1 for episodes in range(max_episodes)]
-
 plt.plot(eps_for_plot, scores)
 plt.show()
 
 print(mean)
 
-torch.save(agent.net.state_dict(), "q_model.pth")
+torch.save(agent.net.state_dict(), "q_model_lunar.pth")
     
 env.close()
 

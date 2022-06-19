@@ -1,5 +1,6 @@
 from collections import deque
 import random
+from turtle import forward
 import numpy as np
 import torch
 import torch.nn as nn
@@ -10,10 +11,10 @@ import math
 class Net(nn.Module):
     def __init__(self, input_size) -> None:
         super().__init__()
-        self.layer1 = nn.Linear(input_size, 64)
-        self.layer2 = nn.Linear(64, 64)
-        self.layer3 = nn.Linear(64, 64)
-        self.layer4 = nn.Linear(64, 2)
+        self.layer1 = nn.Linear(input_size, 32)
+        self.layer2 = nn.Linear(32, 32)
+        self.layer3 = nn.Linear(32, 32)
+        self.layer4 = nn.Linear(32, 4)
         self.initialize_weights()
         self.optimizer = opt.Adam(self.parameters(), lr=1e-3)
         self.loss = nn.MSELoss()
@@ -34,16 +35,30 @@ class Net(nn.Module):
 class ConvNet(nn.Module):
     def __init__(self, input_size) -> None:
         super().__init__()
-        
+        self.conv1 = nn.Conv2d(1, 32, 5)
+        self.conv2 = nn.Conv2d(32, 64, 5)
+        self.layer1 = nn.Linear(64, 128)
+        self.layer2 = nn.Linear(128, 256)
+        self.output_layer = nn.Linear(256, 3)
+
+    def forward(self, data):
+        data = f.relu(self.conv1(data))
+        data = f.max_pool2d(data)
+        data = f.relu(self.conv2(data))
+        data = f.max_pool2d(data)
+        data = nn.Flatten(data)
+        data = f.relu(self.layer1(data))
+        data = f.relu(self.layer2(data))
+
+        return f.softmax(self.output_layer(data))
 
 class Agent:
     def __init__(self, env, observation, input_size):
-        self.observation_size = (1, 1, 6, 3)
-        self.action_size = env.action_space.n
-        self.q_table = np.random.uniform(low=0, high=1, size=(observation + [self.action_size]))
-        self.q_table.shape
-        self.replay_memory = deque(maxlen=1000)
-        self.device = torch.device("cpu") if torch.cuda.is_available() else torch.device("cpu")
+        # self.observation_size = (1, 1, 6, 3)
+        # self.action_size = env.action_space.n
+        # self.q_table = np.random.uniform(low=0, high=1, size=(observation + [self.action_size]))
+        # self.q_table.shape
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.net = Net(input_size).to(self.device)
         self.target_net = Net(input_size).to(self.device)
         self.target_net.load_state_dict(self.net.state_dict())
@@ -60,8 +75,7 @@ class Agent:
         if random.random() < epsilon:
             action = env.action_space.sample()
         else:
-            print("sampling")
-            action = torch.argmax(self.net(torch.Tensor(state))).item()
+            action = torch.argmax(self.net(torch.Tensor(state).to(self.device))).item()
 
         return action   
 
